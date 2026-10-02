@@ -2,8 +2,8 @@
   stdenv,
   lib,
   fetchFromGitHub,
+  substitute,
   makeWrapper,
-  nix-update-script,
   nodejs,
   nixosTests,
   yarn-berry_4,
@@ -11,13 +11,29 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "outline";
-  version = "1.6.1";
+  version = "1.10.1";
 
   src = fetchFromGitHub {
     owner = "outline";
     repo = "outline";
     rev = "v${finalAttrs.version}";
-    hash = "sha256-T9oMnDYbkT50IOCflL7tay0iUXui7sW+gxddGKOvzbk=";
+    hash = "sha256-msFMfjNkpXaJisbTpJMQowyD0KZ5zfvSgTutEeLp9Vk=";
+
+    # Remove after upstream updates to Yarn 4.15
+    # https://github.com/outline/outline/blob/main/package.json#L393
+    postFetch = ''
+      cd $out
+      patch -p1 < ${
+        (substitute {
+          src = ./yarn-fix.patch;
+          substitutions = [
+            "--replace-fail"
+            "YARN_LOCKFILE_VERSION_PLACEHOLDER"
+            yarn-berry_4.lockfileVersion
+          ];
+        })
+      }
+    '';
   };
 
   missingHashes = ./missing-hashes.json;
@@ -30,7 +46,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   offlineCache = yarn-berry_4.fetchYarnBerryDeps {
     inherit (finalAttrs) src missingHashes;
-    hash = "sha256-4JmXn8/R0IssZrVyk6OMo5ZsSdo+Wmcr6cvuviMi4GA=";
+    hash = "sha256-bEsnu4NL/Dgv6yPXXvV/4uMvQ7Sc9eDfeAD2fhFCB98=";
   };
 
   buildPhase = ''
@@ -44,8 +60,12 @@ stdenv.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
+    yarn workspaces focus --production
+
     mkdir -p $out/bin $out/share/outline
     mv build server public node_modules $out/share/outline/
+    find $out/share/outline/node_modules -name "*.map" -delete
+    find $out/share/outline/node_modules -name "*.d.ts" -delete
 
     node_modules=$out/share/outline/node_modules
     build=$out/share/outline/build
@@ -64,7 +84,7 @@ stdenv.mkDerivation (finalAttrs: {
     tests = {
       basic-functionality = nixosTests.outline;
     };
-    updateScript = nix-update-script { };
+    updateScript = ./update.sh;
     # alias for nix-update to be able to find and update this attribute
     inherit (finalAttrs) offlineCache;
   };
@@ -72,7 +92,7 @@ stdenv.mkDerivation (finalAttrs: {
   meta = {
     description = "Fastest wiki and knowledge base for growing teams. Beautiful, feature rich, and markdown compatible";
     homepage = "https://www.getoutline.com/";
-    changelog = "https://github.com/outline/outline/releases";
+    changelog = "https://github.com/outline/outline/releases/v${finalAttrs.version}";
     license = lib.licenses.bsl11;
     maintainers = with lib.maintainers; [
       cab404

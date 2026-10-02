@@ -12,14 +12,14 @@
 
 buildPythonPackage rec {
   pname = "satel-integra";
-  version = "1.1.0";
+  version = "1.5.0";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "c-soft";
     repo = "satel_integra";
     tag = version;
-    hash = "sha256-fuSkLJDxrTgOWYwde1mAwFebYuTA3gsZmxONxgd4bhc=";
+    hash = "sha256-SGeCIiEi9Gkmpr2hjtPskOIxpK67G0vuEZZVQhYyse0=";
   };
 
   build-system = [

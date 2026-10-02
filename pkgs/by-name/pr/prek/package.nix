@@ -4,34 +4,26 @@
   fetchFromGitHub,
   rustPlatform,
   installShellFiles,
-  git,
-  uv,
-  python312,
   versionCheckHook,
   nix-update-script,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "prek";
-  version = "0.3.8";
+  version = "0.5.3";
+  __structuredAttrs = true;
 
   src = fetchFromGitHub {
     owner = "j178";
     repo = "prek";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-0mddrCEGQHFm4zW5nQ7HHFK826XcYSymr9AfVd5P+eg=";
+    hash = "sha256-O0CFdM4rQZSSj7k8LslvRaDabHU8//Z0wMr42bRRzz0=";
   };
 
-  cargoHash = "sha256-YZqIx6P2nkaKaJUW6IPboiHVDlaDvPCpLMlX0swJYyU=";
+  cargoHash = "sha256-TRmnVE+zyFTnKjyJU/rnhKQoL8rJA/ZNWfI2NOrzOOs=";
 
   nativeBuildInputs = [
     installShellFiles
-  ];
-
-  nativeCheckInputs = [
-    git
-    python312
-    uv
   ];
 
   # many tests just do not work, as they require network access
@@ -55,7 +47,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     description = "Better `pre-commit`, re-engineered in Rust ";
     mainProgram = "prek";
     changelog = "https://github.com/j178/prek/blob/${finalAttrs.src.tag}/CHANGELOG.md";
-    license = [ lib.licenses.mit ];
-    maintainers = [ lib.maintainers.knl ];
+    license = lib.licenses.mit;
+    maintainers = [ lib.maintainers.thunze ];
   };
 })

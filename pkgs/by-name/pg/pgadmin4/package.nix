@@ -2,6 +2,7 @@
   lib,
   python3,
   fetchFromGitHub,
+  substitute,
   zlib,
   nixosTests,
   postgresqlTestHook,
@@ -15,13 +16,29 @@
 let
   pname = "pgadmin";
   version = "9.14";
-  yarnHash = "sha256-j/5qoCrhC7xBPaS6NhZFFQtJ7ThL/wkFXoCtyreLHco=";
+  yarnHash = "sha256-uixmtWC588JD6DfM9INeh6LV5L2S9lc+GFNW62FVm+4=";
 
   src = fetchFromGitHub {
     owner = "pgadmin-org";
     repo = "pgadmin4";
     rev = "REL-${lib.versions.major version}_${lib.versions.minor version}";
-    hash = "sha256-NQe1ZN8jQEJE5qSpL5MjgLwWLGrGXCIHaCd8zLpsx3s=";
+    hash = "sha256-ZUJEwTRKG23ztLKAp+hDHKeKxPc6VmC8gnJe4x85R44=";
+
+    # Remove when updating since upstream has updated Yarn
+    # https://github.com/pgadmin-org/pgadmin4/commit/aad2dfd7251f769ce73dd1bc3e17c76831a019ed#diff-b861012a5dd72b8a9f3281b7cf09f5a779c98569d040b1bbc1db50f1b15e7cceR183
+    postFetch = ''
+      cd $out/web
+      patch -p1 < ${
+        (substitute {
+          src = ./yarn-fix.patch;
+          substitutions = [
+            "--replace-fail"
+            "YARN_LOCKFILE_VERSION_PLACEHOLDER"
+            yarn-berry_4.lockfileVersion
+          ];
+        })
+      }
+    '';
   };
 
   # keep the scope, as it is used throughout the derivation and tests
@@ -61,6 +78,7 @@ pythonPackages.buildPythonApplication rec {
     ./expose-setup.py.patch
     # check for permission of /etc/pgadmin/config_system and don't fail
     ./check-system-config-dir.patch
+
   ];
 
   postPatch = ''
@@ -109,8 +127,8 @@ pythonPackages.buildPythonApplication rec {
     echo Building the web frontend...
     cd web
     (
-    export LD=$CC # https://github.com/imagemin/optipng-bin/issues/108
-    yarnBerryConfigHook
+      export LD=$CC # https://github.com/imagemin/optipng-bin/issues/108
+      yarnBerryConfigHook
     )
     yarn webpacker
     cp -r * ../pip-build/pgadmin4

@@ -15,18 +15,18 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "rustls-ffi";
-  version = "0.15.1";
+  version = "0.15.4";
 
   src = fetchFromGitHub {
     owner = "rustls";
     repo = "rustls-ffi";
     tag = "v${finalAttrs.version}";
-    hash = "sha256-mqC5uKkFIVVZW+7Z+8PF2lhx/6TVsKX4DW6oQuMMtDw=";
+    hash = "sha256-bhh9KtL7AvRLX1W6+FKdimq+YZsIsQHFdVKf1h1i0Jo=";
   };
 
   cargoDeps = rustPlatform.fetchCargoVendor {
     inherit (finalAttrs) pname version src;
-    hash = "sha256-ugU2tfG9VUvOhMeOQ4A+MBQIEw+bYb2dZllXrztQtrg=";
+    hash = "sha256-22MIs5vjWu9IbjrpbPnp4g3i+nR6v7qxQoMhfve5SDM=";
   };
 
   propagatedBuildInputs = lib.optionals stdenv.hostPlatform.isDarwin [

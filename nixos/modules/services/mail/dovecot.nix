@@ -7,7 +7,6 @@
 
 let
   inherit (lib)
-    all
     attrsToList
     concatMapStringsSep
     concatStringsSep
@@ -19,7 +18,6 @@ let
     isBool
     isDerivation
     isInt
-    isList
     isPath
     isString
     listToAttrs
@@ -92,77 +90,97 @@ let
     }) cfg.sieve.pipeBins
   );
 
-  yesOrNo = v: if v then "yes" else "no";
-
   toOption =
     i: n: v:
     "${i}${toString n} = ${v}";
 
-  formatKeyValue =
-    indent: n: v:
-    if (v == null) then
-      ""
-    else if isInt v then
-      toOption indent n (toString v)
+  isPrimitive = v: !isAttrs v || isDerivation v;
+
+  formatPrimitive =
+    v:
+    if isInt v then
+      toString v
     else if isBool v then
-      toOption indent n (yesOrNo v)
+      lib.boolToYesNo v
     else if isString v then
-      toOption indent n v
-    else if isList v then
-      if all isString v then
-        toOption indent n (concatStringsSep " " v)
-      else
-        map (formatKeyValue indent n) v
+      v
     else if isPath v || isDerivation v then
       # paths -> copy to store
       # derivations -> just use output path instead of looping over the attrs
-      toOption indent n "${v}"
-    else if isAttrs v && v ? _section then
-      let
-        sectionType = v._section.type;
-        sectionName = v._section.name;
-        sectionTitle = concatStringsSep " " (
-          filter (s: s != null) [
-            sectionType
-            sectionName
-          ]
-        );
-      in
-      concatStringsSep "\n" (
-        [
-          "${indent}${sectionTitle} {"
-        ]
-        ++ (mapAttrsToList (formatKeyValue "${indent}  ") (removeAttrs v [ "_section" ]))
-        ++ [ "${indent}}" ]
-      )
-    else if isAttrs v then
-      concatStringsSep "\n" (
-        [
-          "${indent}${n} {"
-        ]
-        ++ (mapAttrsToList (formatKeyValue "${indent}  ") v)
-        ++ [ "${indent}}" ]
-      )
+      "${v}"
     else
-      throw (traceSeq v "services.dovecot2.settings: unexpected type");
+      throw (traceSeq v "services.dovecot2.settings: unexpected primitive type");
+
+  formatSection =
+    indent: n: v:
+    let
+      sectionTitle =
+        if v ? _section then
+          concatStringsSep " " (
+            filter (s: s != null) [
+              v._section.type
+              v._section.name
+            ]
+          )
+        else
+          n;
+      inner = removeAttrs v [ "_section" ];
+    in
+    concatStringsSep "\n" (
+      [ "${indent}${sectionTitle} {" ]
+      ++ flatten (mapAttrsToList (primitiveLinesFor "${indent}  ") inner)
+      ++ flatten (mapAttrsToList (sectionLinesFor "${indent}  ") inner)
+      ++ [ "${indent}}" ]
+    );
+
+  # emit lines for a k=v pair only when the value is a primitive
+  primitiveLinesFor =
+    indent: n: v:
+    let
+      primitives = filter isPrimitive (flatten [ v ]);
+      hasOnlySections = primitives == [ ] && v != [ ];
+    in
+    # Only emit an empty list if the original entry was also an empty list.
+    # This is so that values like k = [{ ... }] will not produce an output
+    # here, but k = [] will, even though they result in the same
+    # primitives = [].
+    optional (!hasOnlySections && v != null) (
+      toOption indent n (concatMapStringsSep " " formatPrimitive primitives)
+    );
+
+  # emit lines for a k=v pair only when the value is *not* a primitive
+  sectionLinesFor =
+    indent: n: v:
+    let
+      sections = filter (e: !isPrimitive e) (flatten [ v ]);
+    in
+    map (e: formatSection indent n e) sections;
 
   doveConf =
     let
-      configVersion = cfg.settings.dovecot_config_version or null;
-      storageVersion = cfg.settings.dovecot_storage_version or null;
+      configVersion = cfg.settings.dovecot_config_version;
+      storageVersion = cfg.settings.dovecot_storage_version;
       remainingSettings = builtins.removeAttrs cfg.settings [
         "dovecot_config_version"
         "dovecot_storage_version"
       ];
     in
     concatStringsSep "\n" (
-      optional (configVersion != null) (formatKeyValue "" "dovecot_config_version" configVersion)
-      ++ optional (storageVersion != null) (formatKeyValue "" "dovecot_storage_version" storageVersion)
+      optionals (configVersion != null) (primitiveLinesFor "" "dovecot_config_version" configVersion)
+      ++ optionals (storageVersion != null) (
+        primitiveLinesFor "" "dovecot_storage_version" storageVersion
+      )
       ++ optionals (cfg.includeFiles != [ ]) (map (f: "!include ${f}") cfg.includeFiles)
-      ++ flatten (mapAttrsToList (formatKeyValue "") remainingSettings)
+      ++ flatten (mapAttrsToList (primitiveLinesFor "") remainingSettings)
+      ++ flatten (mapAttrsToList (sectionLinesFor "") remainingSettings)
     );
 
   isPre24 = versionOlder cfg.package.version "2.4";
+
+  # HACK: We can not auto-add the default for sieve_script_bin_path unless we have the pigeonhole plugin loaded. Solve this in a better way in the future
+  hasPigeonhole = builtins.any (
+    pkg: pkg.pname or null == "dovecot-pigeonhole"
+  ) config.environment.systemPackages;
 in
 {
   imports = [
@@ -578,10 +596,30 @@ in
 
               # 2.4-only options
 
+              dovecot_config_version = mkOption {
+                default = null;
+                description = ''
+                  Dovecot configuration version. It uses the same versioning as Dovecot in general, e.g. 3.0.5. It specifies the configuration syntax, the used setting names and the expected default values.
+
+                  See <https://doc.dovecot.org/latest/core/summaries/settings.html#dovecot_config_version>.
+                '';
+                type = nullOr str;
+              };
+
+              dovecot_storage_version = mkOption {
+                default = null;
+                description = ''
+                  Dovecot storage file format version. It uses the same versioning as Dovecot in general, e.g. 3.0.5. It specifies the oldest Dovecot version that must be able to read files written by this Dovecot instance.
+
+                  See <https://doc.dovecot.org/latest/core/summaries/settings.html#dovecot_storage_version>.
+                '';
+                type = nullOr str;
+              };
+
               sieve_script_bin_path = mkOption {
-                default = if isPre24 then null else "/tmp/dovecot-%{user|username|lower}";
+                default = if isPre24 || !hasPigeonhole then null else "/tmp/dovecot-%{user|username|lower}";
                 defaultText = literalExpression ''
-                  if isPre24
+                  if isPre24 || !hasPigeonhole
                   then null
                   else "/tmp/dovecot-%{user|username|lower}"
                 '';
@@ -1021,7 +1059,7 @@ in
           "CAP_SYS_RESOURCE"
         ];
         LockPersonality = true;
-        MemoryDenyWriteExecute = true;
+        MemoryDenyWriteExecute = false; # pcre2 jit
         NoNewPrivileges = false; # e.g for sendmail
         OOMPolicy = "continue";
         PrivateTmp = true;

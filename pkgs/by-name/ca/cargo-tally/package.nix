@@ -6,14 +6,14 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "cargo-tally";
-  version = "1.0.73";
+  version = "1.0.78";
 
   src = fetchCrate {
     inherit (finalAttrs) pname version;
-    hash = "sha256-aYVo/mI4YoohwxXoIL9vpuPN526sPnQMV1PnUqJEO2U=";
+    hash = "sha256-+zAi4Cgfi7rO0OcWv50Y7q3NiebLrdaPUR/SFKerrRA=";
   };
 
-  cargoHash = "sha256-+TIYJn0BvFBmhVkldOTtAvQv5Uj5sLsJ4OGNH3ic8lU=";
+  cargoHash = "sha256-iYb2K70+jVJTdS65bZmcxE4eJstcqtx10NisU7NaW/Q=";
 
   meta = {
     description = "Graph the number of crates that depend on your crate over time";

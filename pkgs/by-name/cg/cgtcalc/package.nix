@@ -4,7 +4,6 @@
   nix-update-script,
   stdenv,
   swift,
-  swiftPackages,
   swiftpm,
   swiftpm2nix,
 }:
@@ -37,15 +36,11 @@ stdenv.mkDerivation (finalAttrs: {
     runHook postInstall
   '';
 
-  buildInputs = [
-    swiftPackages.XCTest
-  ];
+  doCheck = !stdenv.hostPlatform.isDarwin;
 
-  # libIndexStore.so: cannot open shared object file: No such file or directory
-  # https://github.com/NixOS/nixpkgs/issues/379859
-  doCheck = false;
-
-  passthru.updateScript = nix-update-script { };
+  passthru.updateScript = nix-update-script {
+    extraArgs = [ "--version=branch" ];
+  };
 
   meta = {
     description = "UK capital gains tax calculator written in Swift";

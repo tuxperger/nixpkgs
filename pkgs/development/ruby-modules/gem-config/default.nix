@@ -52,7 +52,6 @@
   cmake,
   libssh2,
   openssl,
-  openssl_1_1,
   libmysqlclient,
   git,
   perl,
@@ -810,10 +809,15 @@ in
       }
     );
 
-  openssl = attrs: {
+  openssl =
+    attrs:
     # https://github.com/ruby/openssl/issues/369
-    buildInputs = [ (if (lib.versionAtLeast attrs.version "3.0.0") then openssl else openssl_1_1) ];
-  };
+    assert
+      lib.versionAtLeast attrs.version "3.0.0"
+      || throw "OpenSSL 1.1 is EOL and the corresponding Ruby gem was removed.";
+    {
+      buildInputs = [ openssl ];
+    };
 
   opus-ruby = attrs: {
     dontBuild = false;
@@ -890,6 +894,11 @@ in
       imlib2.dev
     ];
     buildFlags = [ "--without-imlib2-config" ];
+  };
+
+  prawn-gmagick = attrs: {
+    buildInputs = [ graphicsmagick ];
+    nativeBuildInputs = [ pkg-config ];
   };
 
   psych = attrs: {
@@ -1036,6 +1045,20 @@ in
     buildFlags = [ "--with-ssh" ];
   };
 
+  rbtrace =
+    attrs:
+    # unpack the vendored msgpack so the gnu-config hook can refresh its old config.{guess,sub}
+    lib.optionalAttrs (stdenv.hostPlatform.isRiscV64 || stdenv.hostPlatform.isLoongArch64) {
+      dontBuild = false;
+      postPatch = ''
+        tar -xzf ext/src/msgpack-1.1.0.tar.gz -C ext/src
+      '';
+      preConfigure = ''
+        tar -czf ext/src/msgpack-1.1.0.tar.gz -C ext/src msgpack-1.1.0
+        rm -r ext/src/msgpack-1.1.0
+      '';
+    };
+
   sassc = attrs: {
     nativeBuildInputs = [ rake ];
     dontBuild = false;
@@ -1130,10 +1153,7 @@ in
   };
 
   trilogy = attrs: {
-    postInstall = ''
-      installPath=$(cat "$out/nix-support/gem-meta/install-path")
-      ln -s contrib/ruby/trilogy.gemspec "$installPath/trilogy.gemspec"
-    '';
+    buildInputs = [ openssl ];
   };
 
   typhoeus = attrs: {

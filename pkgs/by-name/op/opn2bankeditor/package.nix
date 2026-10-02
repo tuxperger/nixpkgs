@@ -2,61 +2,60 @@
   stdenv,
   lib,
   fetchFromGitHub,
-  dos2unix,
+  unstableGitUpdater,
   cmake,
   pkg-config,
-  libsForQt5,
+  qt6Packages,
   rtaudio,
   rtmidi,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "opn2bankeditor";
-  version = "1.3";
+  version = "1.3-unstable-2026-07-24";
 
   src = fetchFromGitHub {
     owner = "Wohlstand";
     repo = "opn2bankeditor";
-    tag = "v${finalAttrs.version}";
-    hash = "sha256-YigxCgGIjOrwDxNgcIwiW8d3qHlDyA7o0vUUb5SpKlo=";
+    rev = "4274c035c2b070c0c52da12dfe9cf241ac00aa4d";
+    fetchSubmodules = true;
+    hash = "sha256-Or4iLI+JTyw0xbVla5uTbqhnU6PZuCaApYWma4pzBJQ=";
   };
 
-  prePatch = ''
-    dos2unix CMakeLists.txt
-  '';
-
-  patches = [
-    ./0001-opn2bankeditor-Look-for-system-installed-Rt-libs.patch
-  ];
-
   nativeBuildInputs = [
-    dos2unix
     cmake
     pkg-config
-    libsForQt5.qttools
-    libsForQt5.wrapQtAppsHook
+    qt6Packages.qttools
+    qt6Packages.wrapQtAppsHook
   ];
 
   buildInputs = [
-    libsForQt5.qtbase
-    libsForQt5.qwt6_1
+    qt6Packages.qtbase
+    qt6Packages.qwt
     rtaudio
     rtmidi
   ];
 
-  postPatch = ''
-    substituteInPlace CMakeLists.txt \
-      --replace-fail "cmake_minimum_required(VERSION 3.2)" "cmake_minimum_required(VERSION 3.10)"
-  '';
+  cmakeFlags = [
+    (lib.strings.cmakeFeature "BUILD_MAJOR_QT" "6")
+    (lib.strings.cmakeBool "USE_RTAUDIO" true)
+    (lib.strings.cmakeBool "USE_RTMIDI" true)
+    (lib.strings.cmakeBool "USE_VENDORED_RTAUDIO" false)
+    (lib.strings.cmakeBool "USE_VENDORED_RTMIDI" false)
+  ];
 
   postInstall = lib.optionalString stdenv.hostPlatform.isDarwin ''
     mkdir $out/{bin,Applications}
     mv "OPN2 Bank Editor.app" $out/Applications/
 
-    install_name_tool -change {,${libsForQt5.qwt6_1}/lib/}libqwt.6.dylib "$out/Applications/OPN2 Bank Editor.app/Contents/MacOS/OPN2 Bank Editor"
+    install_name_tool -change {,${qt6Packages.qwt}/lib/}libqwt.6.dylib "$out/Applications/OPN2 Bank Editor.app/Contents/MacOS/OPN2 Bank Editor"
 
     ln -s "$out/Applications/OPN2 Bank Editor.app/Contents/MacOS/OPN2 Bank Editor" $out/bin/opn2_bank_editor
   '';
+
+  passthru.updateScript = unstableGitUpdater {
+    tagPrefix = "v";
+  };
 
   meta = {
     mainProgram = "opn2_bank_editor";
